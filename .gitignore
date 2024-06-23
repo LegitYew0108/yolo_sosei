@@ -1,0 +1,10 @@
+daySequence2/
+dayTest/
+dayTrain/
+nightSequence1/
+nightSequence2/
+nightTrain/
+sample-dayClip6/
+sample-nightClip1/
+tf_env/
+.mypy_cache/
