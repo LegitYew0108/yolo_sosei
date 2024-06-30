@@ -8,3 +8,7 @@ sample-dayClip6/
 sample-nightClip1/
 tf_env/
 .mypy_cache/
+saved_model/
+yolo_model.h5
+yolo_model.keras
+checkpoints/

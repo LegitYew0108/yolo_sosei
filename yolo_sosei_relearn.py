@@ -132,8 +132,9 @@ labels = np.array(labels)
 
 model = create_yolo_model(input_shape, num_classes)
 model.compile(optimizer='adam', loss=yolo_loss)
+model.load_weights('./checkpoints/yolo_checkpoint.weights.h5')
 
-model.fit(images, labels, epochs=10)
+model.fit(images, labels, epochs=100)
 
 # モデルの保存
 model.save_weights('./checkpoints/yolo_checkpoint.weights.h5')
