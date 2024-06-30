@@ -15,25 +15,44 @@ class_mapping = {'stop': 0, 'go': 1, 'yield': 2}  # クラス名とクラスID�
 # モデルの構築
 def create_yolo_model(input_shape, num_classes):
     inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
-    x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
-    x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
-    x = layers.MaxPooling2D((2, 2))(x)
+    x = layers.Conv2D(64, (7, 7),strides=(2,2), activation='leakyrelu', padding='same')(inputs)
+    x = layers.MaxPooling2D((2, 2), strides=2)(x)
+    x = layers.Conv2D(192, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.MaxPooling2D((2, 2), strides=2)(x)
+    x = layers.Conv2D(128, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(256, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(256, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.MaxPooling2D((2, 2),strides=2)(x)
+    x = layers.Conv2D(256, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(256, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(256, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(256, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.MaxPooling2D((2, 2),strides=2)(x)
+    x = layers.Conv2D(512, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(512, (1, 1), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), strides=(2, 2), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
+    x = layers.Conv2D(1024, (3, 3), activation='leakyrelu', padding='same')(x)
     x = layers.Flatten()(x)
-    x = layers.Dense(512, activation='relu')(x)
-    outputs = layers.Dense(num_classes * 5, activation='sigmoid')(x) # (x, y, w, h, class_probs)
+    x = layers.Dense(4096, activation='leakyrelu')(x)
+    outputs = layers.Dense(7*7*(5+num_classes), activation='sigmoid')(x) #7*7(gridcell size)*(x,y,w,h,confidence)
     model = models.Model(inputs, outputs)
     return model
 
 # データの前処理
 def preprocess_data(image_path, box, class_label, input_shape):
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(f"File not found: {image_path}")
+    # load image
     image = cv2.imread(image_path)
-    if image is None:
-        raise ValueError(f"Failed to read image: {image_path}")
     image_resized = cv2.resize(image, (input_shape[1], input_shape[0]))
     image_normalized = image_resized / 255.0
     
@@ -45,12 +64,13 @@ def preprocess_data(image_path, box, class_label, input_shape):
     width = (x2 - x1) / w
     height = (y2 - y1) / h
     
+    label = 
     label = [x_center, y_center, width, height] + [1 if i == class_label else 0 for i in range(num_classes)]
     
     return image_normalized, label
 
 # モデルのコンパイルと学習
-input_shape = (224, 224, 3)  # リサイズ後のサイズを指定
+input_shape = (448, 448, 3)  # リサイズ後のサイズを指定
 num_classes = 3  # クラス数（例: stop, go, yield）
 
 # データの前処理
@@ -72,7 +92,6 @@ labels = np.array(labels)
 model = create_yolo_model(input_shape, num_classes)
 model.compile(optimizer='adam', loss='binary_crossentropy')
 
-# ダミーデータでの学習（実際にはデータセットを使用）
 model.fit(images, labels, epochs=10)
 
 # モデルの保存
