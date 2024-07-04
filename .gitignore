@@ -12,3 +12,6 @@ saved_model/
 yolo_model.h5
 yolo_model.keras
 checkpoints/
+checkpoint3/
+__pycache__/
+result/

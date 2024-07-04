@@ -6,103 +6,9 @@ from tensorflow.keras import layers, models
 from keras.layers import LeakyReLU
 import os
 import math
-
-# モデルの構築
-def create_yolo_model(input_shape, num_classes):
-    inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(64, (7, 7),strides=(2,2), activation=LeakyReLU(alpha=0.01), padding='same')(inputs)
-    x = layers.MaxPooling2D((2, 2), strides=2)(x)
-    x = layers.Conv2D(192, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.MaxPooling2D((2, 2), strides=2)(x)
-    x = layers.Conv2D(128, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(256, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(256, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.MaxPooling2D((2, 2),strides=2)(x)
-    x = layers.Conv2D(256, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(256, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(256, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(256, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.MaxPooling2D((2, 2),strides=2)(x)
-    x = layers.Conv2D(512, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(512, (1, 1), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), strides=(2, 2), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Conv2D(1024, (3, 3), activation=LeakyReLU(alpha=0.01), padding='same')(x)
-    x = layers.Flatten()(x)
-    x = layers.Dense(4096, activation=LeakyReLU(alpha=0.01))(x)
-    x = layers.Dense(7*7*(5+num_classes), activation='sigmoid')(x) #7*7(gridcell size)*(x,y,w,h,confidence,go,stop,yield)
-    outputs = layers.Reshape((7,7,5+num_classes))(x)
-    model = models.Model(inputs, outputs)
-    return model
-
-# データの前処理
-def preprocess_data(image_path, box, class_label, input_shape):
-    # load image
-    image = cv2.imread(image_path)
-    image_resized = cv2.resize(image, (input_shape[1], input_shape[0]))
-    image_normalized = image_resized / 255.0
-    
-    # バウンディングボックスの前処理
-    S = 7
-    h, w, _ = image.shape
-    x1, y1, x2, y2 = box
-    x_center = (x1 + x2) / 2 / w
-    y_center = (y1 + y2) / 2 / h
-    width = (x2 - x1) / w
-    height = (y2 - y1) / h
-    grid_size_x = input_shape[1]/S
-    grid_size_y = input_shape[0]/S
-    x_center_grid = math.floor(x_center/grid_size_x)
-    y_center_grid = math.floor(y_center/grid_size_y)
-    
-    label = np.zeros((7,7,5+3))
-    label[x_center_grid,y_center_grid,0:5] = [x_center,y_center,width,height,1.0]
-
-    label[x_center_grid,y_center_grid,5:] = np.eye(3)[class_label]
-    
-    print(label)
-    return image_normalized, label
-
-def yolo_loss(y_true, y_pred):
-    # y_true: ラベルデータ (batch_size, S, S, B*5 + C)
-    # y_pred: 予測データ (batch_size, S, S, B*5 + C)
-
-    # オブジェクトが存在するマスク
-    object_mask = y_true[..., 4:5]
-
-    # バウンディングボックスの損失
-    bbox_true = y_true[..., :1*5]
-    bbox_pred = y_pred[..., :1*5]
-    bbox_loss = tf.reduce_sum(object_mask * tf.square(bbox_true - bbox_pred))
-
-    # クラス確率の損失
-    class_true = y_true[..., 1*5:]
-    class_pred = y_pred[..., 1*5:]
-    class_loss = tf.reduce_sum(object_mask * tf.square(class_true - class_pred))
-
-    # 信頼度スコアの損失
-    confidence_true = y_true[..., 4:5]
-    confidence_pred = y_pred[..., 4:5]
-    confidence_loss_obj = tf.reduce_sum(object_mask * tf.square(confidence_true - confidence_pred))
-    confidence_loss_noobj = tf.reduce_sum((1 - object_mask) * tf.square(confidence_true - confidence_pred))
-    confidence_loss = confidence_loss_obj + 0.5 * confidence_loss_noobj  # 非オブジェクトの損失に0.5の重みをかける
-
-    # 全体の損失
-    total_loss = bbox_loss + class_loss + confidence_loss
-    return total_loss
-
-
-###----------------------------------ここからが実際の処理---------------------------------###
+from model import yolo_v1_model
+from loss import YoloLoss
+from preprocess import preprocess_data
 
 # CSVファイルの読み込み
 csv_path = 'Annotations/Annotations/dayTrain/dayClip1/annotations_1.csv'  # CSVファイルのパスを指定
@@ -130,10 +36,37 @@ for index, row in df.iterrows():
 images = np.array(images)
 labels = np.array(labels)
 
-model = create_yolo_model(input_shape, num_classes)
-model.compile(optimizer='adam', loss=yolo_loss)
+model = yolo_v1_model()
+loss_fn = YoloLoss()
+optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
 
-model.fit(images, labels, epochs=10)
+epochs = 30
+batch_size = 1
+dataset = tf.data.Dataset.from_tensor_slices((images, labels)).batch(batch_size)
+
+for epoch in range(epochs):
+    print(f'Epoch {epoch+1}/{epochs}')
+    for step, (x_batch_train, y_batch_train) in enumerate(dataset):
+        with tf.GradientTape() as tape:
+            y_pred = model(x_batch_train, training=True)
+
+            # 損失計算の数値チェック
+            loss_value = loss_fn(y_batch_train, y_pred)
+            tf.debugging.check_numerics(loss_value, "Loss contains NaN or Inf")
+
+        grads = tape.gradient(loss_value, model.trainable_variables)
+
+        # 勾配の数値チェック
+        for grad in grads:
+            tf.debugging.check_numerics(grad, "Gradient contains NaN or Inf")
+
+        # 勾配クリッピング
+        clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in grads]
+        
+        optimizer.apply_gradients(zip(clipped_grads, model.trainable_variables))
+
+        if step % 10 == 0:
+            print(f'Step {step}, Loss: {loss_value.numpy()}')
 
 # モデルの保存
-model.save_weights('./checkpoints/yolo_checkpoint.weights.h5')
+model.save_weights('./checkpoint3/yolo_checkpoint.weights.h5')
